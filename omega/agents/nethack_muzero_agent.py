@@ -279,6 +279,7 @@ class NethackMuZeroAgent(JaxTrainableAgentBase):
             'prev_done': done,
         }
 
+    @partial(jax.profiler.annotate_function, name='represent_trajectory')
     def _represent_trajectory(self, params, observation_trajectory, memory_trajectory, train_state, deterministic):
         """
         Recurrently unrolls the representation function forwards starting from the initial memory state
@@ -378,6 +379,7 @@ class NethackMuZeroAgent(JaxTrainableAgentBase):
             })
         return stats
 
+    @partial(jax.profiler.annotate_function, name='compute_mcts_statistics')
     def _compute_mcts_statistics(
             self, observation_trajectory_batch, memory_trajectory_batch, train_state, deterministic, rng):
         batch_size, num_timestamps = jax.tree_leaves(observation_trajectory_batch)[0].shape[:2]
@@ -423,6 +425,7 @@ class NethackMuZeroAgent(JaxTrainableAgentBase):
         return updated_memory_trajectory_batch, mcts_policy_log_probs, mcts_value, mcts_stats
 
     #@timeit
+    @partial(jax.profiler.annotate_function, name='act_on_batch_jit')
     @partial(jax.jit, static_argnums=(0,))
     def _act_on_batch_jit(self, observation_batch, memory_batch, train_state, rng):
         mcts_stats_key, action_key = jax.random.split(rng)
@@ -458,6 +461,7 @@ class NethackMuZeroAgent(JaxTrainableAgentBase):
         return train_stats, per_trajectory_loss_details
 
     #@timeit
+    @partial(jax.profiler.annotate_function, name='train_jit')
     @partial(jax.jit, static_argnums=(0,))
     def _train_jit(self, train_state, training_batch):
         def loss_function(params):
@@ -656,12 +660,14 @@ class NethackMuZeroAgent(JaxTrainableAgentBase):
         return training_batch, reanalyse_stats, trajectory_batch_items
 
     #@timeit
+    @partial(jax.profiler.annotate_function, name='make_next_training_batch_jit')
     @partial(jax.jit, static_argnums=(0,))
     def _make_next_training_batch_jit(self, train_state, trajectory_batch, rng):
         trajectory_batch_with_mcts_stats, reanalyze_stats = self._reanalyze(train_state, trajectory_batch, rng)
         trajectory_batch_with_training_targets = self._prepare_training_targets(trajectory_batch_with_mcts_stats)
         return trajectory_batch_with_training_targets, reanalyze_stats
 
+    @partial(jax.profiler.annotate_function, name='reanalyze')
     def _reanalyze(self, train_state, trajectory_batch, rng):
         # TODO: reanalyze can be done in minibatches if memory ever becomes a problem
         updated_memory, mcts_policy_log_probs, mcts_values, mcts_stats = self._compute_mcts_statistics(
@@ -684,6 +690,7 @@ class NethackMuZeroAgent(JaxTrainableAgentBase):
         reanalyze_stats = pytree.update(reanalyze_stats, pytree.mean(mcts_stats))
         return trajectory_batch, reanalyze_stats
 
+    @partial(jax.profiler.annotate_function, name='prepare_training_targets')
     def _prepare_training_targets(self, trajectory_batch):
         def make_training_trajectory(trajectory):
             num_timestamps = pytree.get_axis_dim(trajectory, axis=0)

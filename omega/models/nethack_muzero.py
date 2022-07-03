@@ -1,5 +1,6 @@
 from dataclasses import field
 from typing import Optional, Dict
+from functools import partial
 
 import flax.linen as nn
 import jax.numpy as jnp
@@ -138,10 +139,12 @@ class NethackPerceiverMuZeroModel(NethackMuZeroModelBase):
     def memory_shape(self):
         return self._state_encoder.num_memory_units, self._state_encoder.memory_dim
 
+    @partial(jax.profiler.annotate_function, name='initial_memory_state')
     def initial_memory_state(self):
         memory_indices = jnp.arange(0, self._state_encoder.num_memory_units, dtype=jnp.int32)
         return self._initial_memory_embedder(memory_indices)
 
+    @partial(jax.profiler.annotate_function, name='chance_outcome_encoder')
     def chance_outcome_encoder(self, latent_state, deterministic=None):
         """
         Produces the embedding of a chance outcome that led to the given state.
@@ -158,7 +161,7 @@ class NethackPerceiverMuZeroModel(NethackMuZeroModelBase):
 
         return pytree.squeeze(chance_outcome_embedding, axis=0)
 
-
+    @partial(jax.profiler.annotate_function, name='representation')
     def representation(self, prev_memory, prev_action, observation, deterministic=None):
         """
         Produces the representation of an observation.
@@ -197,6 +200,7 @@ class NethackPerceiverMuZeroModel(NethackMuZeroModelBase):
         # Also return the representation as the updated memory value
         return representation, representation
 
+    @partial(jax.profiler.annotate_function, name='afterstate_dynamics')
     def afterstate_dynamics(self, previous_latent_state, action, deterministic=None):
         """
         Produces the afterstate resulting from acting with a given action in a given state.
@@ -221,6 +225,7 @@ class NethackPerceiverMuZeroModel(NethackMuZeroModelBase):
         chex.assert_rank(latent_afterstate, 3)
         return pytree.squeeze(latent_afterstate, axis=0)
 
+    @partial(jax.profiler.annotate_function, name='dynamics')
     def dynamics(self, latent_afterstate, chance_outcome_one_hot, deterministic=None):
         """
         Produces the next latent state and reward if a given chance outcome happens at a given afterstate.
@@ -254,6 +259,7 @@ class NethackPerceiverMuZeroModel(NethackMuZeroModelBase):
             pytree.squeeze(log_reward_probs, axis=0),
         )
 
+    @partial(jax.profiler.annotate_function, name='prediction')
     def prediction(self, latent_state, deterministic=None):
         """
         Computes the policy and the value estimate for a single (non-batched) state.
@@ -283,6 +289,7 @@ class NethackPerceiverMuZeroModel(NethackMuZeroModelBase):
             pytree.squeeze(value, axis=0)
         )
 
+    @partial(jax.profiler.annotate_function, name='afterstate_prediction')
     def afterstate_prediction(self, latent_afterstate, deterministic=None):
         """
         Computes the chance outcome distribution and the value estimate for a single (non-batched) afterstate.

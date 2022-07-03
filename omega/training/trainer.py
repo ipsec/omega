@@ -32,6 +32,8 @@ class Trainer(abc.ABC):
         self._agent_memory = self._agent.init_memory_batch(num_envs)
         self._current_state_batch_np = self._batched_env_stepper.reset()
 
+        self._current_step = 0
+
     @property
     def agent(self):
         return self._agent
@@ -41,10 +43,18 @@ class Trainer(abc.ABC):
         return self._num_collection_steps
 
     def run_training_step(self, stats=None):
+        if self._current_step == 10:
+            jax.profiler.start_trace('./profiler_logs', create_perfetto_link=True)
+
         # Collect some trajectories by interacting with the environment. We call it a "day" stage.
         trajectory_batch = self._run_day(stats)
         # Update the parameters of the agent. We call it a "night" stage.
         self._run_night(stats, trajectory_batch)
+
+        if self._current_step == 10:
+            jax.profiler.stop_trace()
+
+        self._current_step += 1
 
     def _run_day(self, stats):
         transition_batches = []
